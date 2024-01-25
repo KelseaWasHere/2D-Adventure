@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>2D Adventure</title>
+</head>
+<body>
+    <canvas id="myCanvas" width="1064" height="1064" style="border:10px solid #FFFFFF;"></canvas>
+	<div id="damageLog" style="position: fixed; top: 10px; right: 10px; padding: 10px; background-color: #f0f0f0;">
+        <h3>Damage Log</h3>
+        <ul id="logList"></ul>
+    </div>
+    <script>
+        var canvas, ctx, mainInstance;
+
+        function initializeGame() {
+            canvas = document.getElementById("myCanvas");
+            ctx = canvas.getContext("2d");
+			
+			 initializeDamageLog();
+
+            mainInstance = {
+                cellSize: 32,
+                maze: [ //0: empty space, 1: brick, 2: tree, 3: potion 
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                    [1, 0, 0, 2, 1, 2, 1, 0, 0, 0, 0, 1, 0, 2, 0, 1],
+                    [1, 0, 1, 0, 1, 0, 0, 0, 2, 2, 0, 1, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 1, 0, 2, 3, 1],
+                    [1, 1, 2, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1],
+                    [1, 2, 0, 0, 1, 1, 1, 0, 2, 0, 0, 0, 0, 1, 2, 1],
+                    [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1],
+                    [1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1],
+                    [1, 1, 2, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1],
+                    [1, 0, 0, 0, 3, 0, 1, 0, 1, 0, 2, 0, 0, 1, 0, 1],
+                    [1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 1],
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+                ],
+               player: {
+            x: 1,
+            y: 1,
+            image: new Image(),
+            HP: 100,  // Health
+            MHP: 100, // Max health
+            ATK: 10,   // Attack bonus
+            DEF: 5     // Defense bonus
+        },
+                monsters: [
+                    { x: 7, y: 6, type: 0, image: new Image() }, // blue slime
+                    { x: 12, y: 6, type: 1, image: new Image() }, // purple slime 
+                    { x: 14, y: 10, type: 2, image: new Image() }  // gray slime
+                ]
+            };
+			
+			for (var i = 0; i < mainInstance.monsters.length; i++) {
+    mainInstance.monsters[i].HP = 50;   // Health
+    mainInstance.monsters[i].MHP = 50;  // Max health
+    mainInstance.monsters[i].ATK = 8;   // Attack bonus
+    mainInstance.monsters[i].DEF = 3;   // Defense bonus
+}
+			
+
+
+			mainInstance.monsters[0].health = 50;
+			mainInstance.monsters[1].health = 100;
+			mainInstance.monsters[2].health = 150;
+
+            mainInstance.player.image.src = 'player.png';
+            mainInstance.monsters[0].image.src = 'blue-slime.png';
+            mainInstance.monsters[1].image.src = 'purple-slime.png';
+            mainInstance.monsters[2].image.src = 'gray-slime.png';
+
+            // Set up image load event listeners
+            mainInstance.player.image.onload = drawGame;
+            for (var i = 0; i < mainInstance.monsters.length; i++) {
+                mainInstance.monsters[i].image.onload = drawGame;
+            }
+
+            // Set up keyboard event listeners
+            window.addEventListener('keydown', handleKeyPress);
+        }
+
+        function handleKeyPress(event) {
+    switch (event.key) {
+        case 'w':
+            movePlayer(0, -1);
+            break;
+        case 's':
+            movePlayer(0, 1);
+            break;
+        case 'a':
+            movePlayer(-1, 0);
+            break;
+        case 'd':
+            movePlayer(1, 0);
+            break;
+    }
+}
+		
+		
+		function logDamage(attacker, target, damage) {
+    var logList = document.getElementById("logList");
+    var logEntry = document.createElement("li");
+
+    if (target === "Potion") {
+        logEntry.textContent = attacker + " picked up and used a potion. Health: +" + damage + " (MAX HP: 200)";
+    } else {
+        logEntry.textContent = attacker + " dealt " + damage + " damage to " + target;
+    }
+
+    logList.appendChild(logEntry);
+}
+function handleCombat(attacker, target) {
+    var damage = Math.max(attacker.ATK - target.DEF, 1) * Math.floor(Math.random() * 6) + 1;
+
+    if (attacker === mainInstance.player) {
+        target.HP -= damage;
+        if (target.HP <= 0) {
+            var index = mainInstance.monsters.indexOf(target);
+            if (index !== -1) {
+                mainInstance.monsters.splice(index, 1);
+                logDamage("Player", target.type === 0 ? "Blue Slime" : (target.type === 1 ? "Purple Slime" : "Gray Slime"), damage);
+            }
+        } else {
+            logDamage("Player", target.type === 0 ? "Blue Slime" : (target.type === 1 ? "Purple Slime" : "Gray Slime"), damage);
+			player_damage = Math.max(attacker.ATK - target.DEF, 1) * Math.floor(Math.random() * 6) + 1;
+			attacker.HP -= player_damage;
+			logDamage("Slime", "Player", player_damage);
+        }
+    } else {
+        attacker.HP -= damage;  // Update the attacker's HP, not the player's
+        logDamage("Slime", "Player", damage);
+    }
+
+    drawHealthBars();
+    drawGame();
+}
+
+        function movePlayer(dx, dy) {
+    if (mainInstance.gameEnded) {
+        return;
+    }
+
+    // Check if the new position is within bounds
+    var newX = mainInstance.player.x + dx;
+    var newY = mainInstance.player.y + dy;
+
+    // Check if there is a slime at the new position
+    var collidedSlime = mainInstance.monsters.find(slime => slime.x === newX && slime.y === newY);
+
+    if (collidedSlime) {
+        // Handle combat before moving the player
+        handleCombat(mainInstance.player, collidedSlime);
+
+        // Check if the player's health is below or equal to 0 and end the game
+        checkDefeat();
+    } else if (
+        newX >= 0 &&
+        newY >= 0 &&
+        newX < mainInstance.maze[0].length &&
+        newY < mainInstance.maze.length &&
+        mainInstance.maze[newY][newX] === 3
+    ) {
+        // Move the player only if there is a potion at the new position
+        mainInstance.player.x = newX;
+        mainInstance.player.y = newY;
+
+        // Increase player's health
+        mainInstance.player.HP += 50;
+		if (mainInstance.player.HP > 200) {
+		 mainInstance.player.HP= 200; 
+		}
+
+        // Set the potion tile to 0
+        mainInstance.maze[newY][newX] = 0;
+
+        // Display a message in the damage log
+        logDamage("Player", "Potion", 50);
+
+        // After the player moves, make all monsters move
+        for (var i = 0; i < mainInstance.monsters.length; i++) {
+            moveSlime(mainInstance.monsters[i]);
+        }
+
+        drawGame(); // Redraw the game after the player moves
+        checkVictory(); // Check for victory conditions
+    } else if (
+        newX >= 0 &&
+        newY >= 0 &&
+        newX < mainInstance.maze[0].length &&
+        newY < mainInstance.maze.length &&
+        mainInstance.maze[newY][newX] !== 1 &&
+        mainInstance.maze[newY][newX] !== 2
+    ) {
+        // Move the player only if the new position is not a wall or occupied by a slime
+        mainInstance.player.x = newX;
+        mainInstance.player.y = newY;
+
+        // After the player moves, make all monsters move
+        for (var i = 0; i < mainInstance.monsters.length; i++) {
+            moveSlime(mainInstance.monsters[i]);
+        }
+
+        // Redraw the game after the player moves
+        checkVictory();
+        drawHealthBars();
+        drawGame();
+        checkDefeat(); // Check for defeat conditions
+    }
+}
+
+		function moveSlime(slime) {
+    
+
+    // Generate random movement for the slime
+    var randomMove = Math.floor(Math.random() * 4); // 0: up, 1: down, 2: left, 3: right
+
+    var dx = 0;
+    var dy = 0;
+	
+	var collidedSlime = mainInstance.monsters.find(slime => slime.x === newX && slime.y === newY);
+
+    switch (randomMove) {
+        case 0:
+            dy = -1;
+            break;
+        case 1:
+            dy = 1;
+            break;
+        case 2:
+            dx = -1;
+            break;
+        case 3:
+            dx = 1;
+            break;
+    }
+
+    // Check if the new position is within bounds and not a wall
+    var newX = slime.x + dx;
+    var newY = slime.y + dy;
+	
+	if (slime.newX === mainInstance.player.x && slime.newY === mainInstance.player.y) {
+        handleCombat(slime, mainInstance.player);
+        return; // Stop movement if the slime has attacked the player
+    }
+
+    if (
+        newX >= 0 &&
+        newY >= 0 &&
+        newX < mainInstance.maze[0].length &&
+        newY < mainInstance.maze.length &&
+        mainInstance.maze[newY][newX] !== 1 &&
+        mainInstance.maze[newY][newX] !== 2
+    ) {
+        // Update the slime's position
+        slime.x += dx;
+        slime.y += dy;
+    }
+}
+
+
+function drawHealthBars() {
+    // Check if the player's health is greater than 0 before drawing the health bar
+    if (mainInstance.player.HP > 0) {
+        // Draw player's health bar above the player's head
+        ctx.fillStyle = "#00FF00"; // Green color
+        ctx.fillRect(mainInstance.player.x * mainInstance.cellSize, (mainInstance.player.y - 1) * mainInstance.cellSize + 5, (mainInstance.player.HP / mainInstance.player.MHP) * mainInstance.cellSize, 5);
+    }
+
+    // Draw health bars for each slime above their heads
+    for (var i = 0; i < mainInstance.monsters.length; i++) {
+        ctx.fillStyle = "#FF0000"; // Red color
+        ctx.fillRect(mainInstance.monsters[i].x * mainInstance.cellSize, (mainInstance.monsters[i].y - 1) * mainInstance.cellSize + 5, (mainInstance.monsters[i].HP / mainInstance.monsters[i].MHP) * mainInstance.cellSize, 5);
+    }
+}
+
+
+function checkVictory() {
+            if (mainInstance.monsters.length === 0) {
+                displayMessage("You Win!");
+            }
+        }
+
+        function checkDefeat() {
+    if (mainInstance.player.HP <= 0) {
+        // Hide player's health bar
+        mainInstance.player.HP = 0; // Ensure health is not negative
+        drawHealthBars();
+
+        // Remove player's image from the game
+        mainInstance.player.image = null;
+
+        // Display defeat message
+        displayMessage("You Lose!");
+    }
+}
+
+        function displayMessage(message) {
+            // Set the gameEnded flag to true
+            mainInstance.gameEnded = true;
+
+            var messageContainer = document.createElement("div");
+            messageContainer.style.position = "fixed";
+            messageContainer.style.top = "50%";
+            messageContainer.style.left = "50%";
+            messageContainer.style.transform = "translate(-50%, -50%)";
+            messageContainer.style.background = "rgba(255, 255, 255, 0.8)";
+            messageContainer.style.padding = "20px";
+            messageContainer.style.borderRadius = "10px";
+            messageContainer.style.textAlign = "center";
+
+            var messageText = document.createElement("h1");
+            messageText.textContent = message;
+
+            messageContainer.appendChild(messageText);
+            document.body.appendChild(messageContainer);
+        }
+
+        function drawGame() {
+    for (var row = 0; row < mainInstance.maze.length; row++) {
+        for (var col = 0; col < mainInstance.maze[row].length; col++) {
+            var x = col * mainInstance.cellSize;
+            var y = row * mainInstance.cellSize;
+
+            // Clear the previous cell
+            ctx.clearRect(x, y, mainInstance.cellSize, mainInstance.cellSize);
+
+            if (mainInstance.maze[row][col] === 1) {
+                ctx.fillStyle = "#8b4f39";
+                ctx.fillRect(x, y, mainInstance.cellSize, mainInstance.cellSize);
+            } else if (mainInstance.maze[row][col] === 2) {
+                ctx.fillStyle = "#2d881b";
+                ctx.fillRect(x, y, mainInstance.cellSize, mainInstance.cellSize);
+            } else if (mainInstance.maze[row][col] === 3) {
+                // Draw the potion image
+                var potionImage = new Image();
+                potionImage.src = 'potion.png';
+                ctx.drawImage(potionImage, x, y, mainInstance.cellSize, mainInstance.cellSize);
+            }
+        }
+    }
+
+    // Draw the player's new position
+    if (mainInstance.player.HP > 0) {
+        ctx.drawImage(mainInstance.player.image, mainInstance.player.x * mainInstance.cellSize, mainInstance.player.y * mainInstance.cellSize, mainInstance.cellSize, mainInstance.cellSize);
+    }
+
+    // Draw the monsters
+    for (var i = 0; i < mainInstance.monsters.length; i++) {
+        ctx.drawImage(mainInstance.monsters[i].image, mainInstance.monsters[i].x * mainInstance.cellSize, mainInstance.monsters[i].y * mainInstance.cellSize, mainInstance.cellSize, mainInstance.cellSize);
+    }
+
+    drawHealthBars();
+	
+    checkVictory();
+    checkDefeat();
+}
+        initializeGame();
+		
+		function initializeDamageLog() {
+    var damageLog = document.getElementById("damageLog");
+    damageLog.style.top = "10px";
+    damageLog.style.right = "10px";
+}
+    </script>
+</body>
+</html>
